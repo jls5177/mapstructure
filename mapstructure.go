@@ -811,17 +811,20 @@ func (d *Decoder) decodeSlice(name string, data interface{}, val reflect.Value) 
 	valElemType := valType.Elem()
 	sliceType := reflect.SliceOf(valElemType)
 
+	// attempt to decode base64 encoded uint8 slices (common for JSON marshalling), falling
+	// back to WeaklyTypedInput decoding if not base64 encoded
+	if dataValKind == reflect.String && valElemType.Kind() == reflect.Uint8 {
+		if b, err := base64.StdEncoding.DecodeString(dataVal.String()); err == nil {
+			dataVal = reflect.ValueOf(b)
+			dataValKind = dataVal.Kind()
+		}
+	}
+
+	inputSliceType := dataVal.Type()
+	inputElemType := inputSliceType.Elem()
+
 	valSlice := val
 	if valSlice.IsNil() || d.config.ZeroFields {
-		// attempt to decode base64 encoded uint8 slices (common for JSON marshalling), falling
-		// back to WeaklyTypedInput decoding if not base64 encoded
-		if dataValKind == reflect.String && valElemType.Kind() == reflect.Uint8 {
-			if b, err := base64.StdEncoding.DecodeString(dataVal.String()); err == nil {
-				dataVal = reflect.ValueOf(b)
-				dataValKind = dataVal.Kind()
-			}
-		}
-
 		if d.config.WeaklyTypedInput {
 			switch {
 			// Slice and array we use the normal logic
@@ -867,16 +870,22 @@ func (d *Decoder) decodeSlice(name string, data interface{}, val reflect.Value) 
 	// Accumulate any errors
 	errors := make([]string, 0)
 
-	for i := 0; i < dataVal.Len(); i++ {
-		currentData := dataVal.Index(i).Interface()
-		for valSlice.Len() <= i {
-			valSlice = reflect.Append(valSlice, reflect.Zero(valElemType))
-		}
-		currentField := valSlice.Index(i)
+	// Fast path should just use reflect.Copy if both slices have the same element type.
+	// Otherwise, fall back to use an element by element decoding
+	if inputElemType.Kind() == valElemType.Kind() {
+		reflect.Copy(valSlice, dataVal)
+	} else {
+		for i := 0; i < dataVal.Len(); i++ {
+			currentData := dataVal.Index(i).Interface()
+			for valSlice.Len() <= i {
+				valSlice = reflect.Append(valSlice, reflect.Zero(valElemType))
+			}
+			currentField := valSlice.Index(i)
 
-		fieldName := fmt.Sprintf("%s[%d]", name, i)
-		if err := d.decode(fieldName, currentData, currentField); err != nil {
-			errors = appendErrors(errors, err)
+			fieldName := fmt.Sprintf("%s[%d]", name, i)
+			if err := d.decode(fieldName, currentData, currentField); err != nil {
+				errors = appendErrors(errors, err)
+			}
 		}
 	}
 
