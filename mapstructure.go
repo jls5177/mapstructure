@@ -91,6 +91,10 @@ type DecoderConfig struct {
 	// The tag name that mapstructure reads for field names. This
 	// defaults to "mapstructure"
 	TagName string
+
+	// FallbackToJSONTags, is set to true, will read tags from TagName and
+	// fallback to "json" tags if empty.
+	FallbackToJSONTags bool
 }
 
 // A Decoder takes a raw interface value and turns it into structured
@@ -677,27 +681,19 @@ func (d *Decoder) decodeMapFromStruct(name string, dataVal reflect.Value, val re
 			return fmt.Errorf("cannot assign type '%s' to map value field of type '%s'", v.Type(), valMap.Type().Elem())
 		}
 
-		tagValue := f.Tag.Get(d.config.TagName)
-		tagParts := strings.Split(tagValue, ",")
+		tag := NewFieldTag(f, d.config.TagName, d.config.FallbackToJSONTags)
+		if tag.Skip {
+			continue
+		}
 
 		// Determine the name of the key in the map
 		keyName := f.Name
-		if tagParts[0] != "" {
-			if tagParts[0] == "-" {
-				continue
-			}
-			keyName = tagParts[0]
+		if tag.Name != "" {
+			keyName = tag.Name
 		}
 
 		// If "squash" is specified in the tag, we squash the field down.
-		squash := false
-		for _, tag := range tagParts[1:] {
-			if tag == "squash" {
-				squash = true
-				break
-			}
-		}
-		if squash && v.Kind() != reflect.Struct {
+		if tag.Squash && v.Kind() != reflect.Struct {
 			return fmt.Errorf("cannot squash non-struct type '%s'", v.Type())
 		}
 
@@ -718,7 +714,7 @@ func (d *Decoder) decodeMapFromStruct(name string, dataVal reflect.Value, val re
 				return err
 			}
 
-			if squash {
+			if tag.Squash {
 				for _, k := range vMap.MapKeys() {
 					valMap.SetMapIndex(k, vMap.MapIndex(k))
 				}
@@ -1015,18 +1011,10 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 		for i := 0; i < structType.NumField(); i++ {
 			fieldType := structType.Field(i)
 			fieldKind := fieldType.Type.Kind()
+			fieldTag := NewFieldTag(fieldType, d.config.TagName, d.config.FallbackToJSONTags)
 
 			// If "squash" is specified in the tag, we squash the field down.
-			squash := false
-			tagParts := strings.Split(fieldType.Tag.Get(d.config.TagName), ",")
-			for _, tag := range tagParts[1:] {
-				if tag == "squash" {
-					squash = true
-					break
-				}
-			}
-
-			if squash {
+			if fieldTag.Squash {
 				if fieldKind != reflect.Struct {
 					errors = appendErrors(errors,
 						fmt.Errorf("%s: unsupported type for squash: %s", fieldType.Name, fieldKind))
@@ -1044,12 +1032,11 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 	// for fieldType, field := range fields {
 	for _, f := range fields {
 		field, fieldValue := f.field, f.val
-		fieldName := field.Name
+		fieldTag := NewFieldTag(field, d.config.TagName, d.config.FallbackToJSONTags)
 
-		tagValue := field.Tag.Get(d.config.TagName)
-		tagValue = strings.SplitN(tagValue, ",", 2)[0]
-		if tagValue != "" {
-			fieldName = tagValue
+		fieldName := field.Name
+		if fieldTag.Name != "" {
+			fieldName = fieldTag.Name
 		}
 
 		rawMapKey := reflect.ValueOf(fieldName)
