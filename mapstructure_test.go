@@ -19,6 +19,7 @@ type Basic struct {
 	vsilent     bool
 	Vdata       interface{}
 	VjsonInt    int
+	VjsonUint   uint
 	VjsonFloat  float64
 	VjsonNumber json.Number
 }
@@ -33,6 +34,7 @@ type BasicPointer struct {
 	vsilent     *bool
 	Vdata       *interface{}
 	VjsonInt    *int
+	VjsonUint   *uint
 	VjsonFloat  *float64
 	VjsonNumber *json.Number
 }
@@ -183,6 +185,7 @@ func TestBasicTypes(t *testing.T) {
 		"vsilent":     true,
 		"vdata":       42,
 		"vjsonInt":    json.Number("1234"),
+		"vjsonUint":   json.Number("1234"),
 		"vjsonFloat":  json.Number("1234.5"),
 		"vjsonNumber": json.Number("1234.5"),
 	}
@@ -228,6 +231,9 @@ func TestBasicTypes(t *testing.T) {
 
 	if result.VjsonInt != 1234 {
 		t.Errorf("vjsonint value should be 1234: %#v", result.VjsonInt)
+	}
+	if result.VjsonUint != 1234 {
+		t.Errorf("vjsonuint value should be 1234: %#v", result.VjsonUint)
 	}
 
 	if result.VjsonFloat != 1234.5 {
@@ -1392,6 +1398,7 @@ func TestDecodeTable(t *testing.T) {
 				"Vextra":      "vextra",
 				"Vdata":       []byte("data"),
 				"VjsonInt":    0,
+				"VjsonUint":   uint(0),
 				"VjsonFloat":  0.0,
 				"VjsonNumber": json.Number(""),
 			},
@@ -1424,6 +1431,7 @@ func TestDecodeTable(t *testing.T) {
 					"Vextra":      "vextra",
 					"Vdata":       []byte("data"),
 					"VjsonInt":    0,
+					"VjsonUint":   uint(0),
 					"VjsonFloat":  0.0,
 					"VjsonNumber": json.Number(""),
 				},
