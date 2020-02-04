@@ -8,6 +8,7 @@
 package mapstructure
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -812,6 +813,15 @@ func (d *Decoder) decodeSlice(name string, data interface{}, val reflect.Value) 
 
 	valSlice := val
 	if valSlice.IsNil() || d.config.ZeroFields {
+		// attempt to decode base64 encoded uint8 slices (common for JSON marshalling), falling
+		// back to WeaklyTypedInput decoding if not base64 encoded
+		if dataValKind == reflect.String && valElemType.Kind() == reflect.Uint8 {
+			if b, err := base64.StdEncoding.DecodeString(dataVal.String()); err == nil {
+				dataVal = reflect.ValueOf(b)
+				dataValKind = dataVal.Kind()
+			}
+		}
+
 		if d.config.WeaklyTypedInput {
 			switch {
 			// Slice and array we use the normal logic

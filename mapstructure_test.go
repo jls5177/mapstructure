@@ -1,6 +1,7 @@
 package mapstructure
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"reflect"
@@ -41,6 +42,10 @@ type BasicPointer struct {
 
 type BasicSquash struct {
 	Test Basic `mapstructure:",squash"`
+}
+
+type BasicSlice struct {
+	Vbyteslice  []uint8
 }
 
 type Embedded struct {
@@ -1976,6 +1981,35 @@ func testArrayInput(t *testing.T, input map[string]interface{}, expected *Array)
 				"Vbar[%d] should be '%#v', got '%#v'",
 				i, expected.Vbar[i], v)
 		}
+	}
+}
+
+func TestBase64ByteSlice(t *testing.T) {
+	t.Parallel()
+
+	input := map[string]interface{}{
+		"vbyteslice": base64.StdEncoding.EncodeToString([]byte("vbyteslice")),
+	}
+
+	var result BasicSlice
+	config := &DecoderConfig{
+		Result:           &result,
+	}
+
+	decoder, err := NewDecoder(config)
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	err = decoder.Decode(input)
+	if err != nil {
+		t.Fatalf("got an err: %s", err)
+	}
+	expected := BasicSlice{
+		Vbyteslice: []uint8("vbyteslice"),
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Fatalf("bad: %#v", result)
 	}
 }
 
